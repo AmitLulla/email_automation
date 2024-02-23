@@ -9,108 +9,78 @@ import pandas as pd
 import time
 import chromedriver_autoinstaller
 from webdriver_manager.chrome import ChromeDriverManager
+import asyncio
+from pyppeteer import launch
 
 
-def send_emails(df, email_subject, email_template, email_ids, userId, userPass):
-    js_code = """
-        window.addEventListener('load', function() {
-            // Page is fully loaded, proceed with scraping
-            window.loaded = true;
-        });
-        """
+async def send_emails(df, email_subject, email_template, email_ids, userId, userPass):
+    # Initialize Pyppeteer browser
+    browser = await launch(headless=False, args=['--disable-dev-shm-usage', '--no-sandbox', '--enable-chrome-browser-cloud-management'])
+    page = await browser.newPage()
+    await page.goto("https://mail.google.com")
 
-    options = Options()
-    options.headless = True
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--no-sandbox")
+    # Enter email
+    await page.waitForSelector("#identifierId")
+    await page.type("#identifierId", userId)
+    await page.keyboard.press('Enter')
 
-    try:
-        # Initialize Chrome WebDriver
-        chromedriver_autoinstaller.install()
-        # Use webdriver_manager to ensure ChromeDriver is up-to-date
-        driver = webdriver.Chrome(options=options)
+    # Wait for password field
+    await page.waitForXPath("//input[@name='password']")
+    await page.type("input[name='password']", userPass)
+    await page.keyboard.press('Enter')
+
+    # Wait for user to log in and handle 2FA
+    wait_time = 0
+    while wait_time < 300:  # 180 seconds = 3 minutes
+        current_url = page.url
+        if current_url.startswith("https://mail.google.com/mail/u/0/"):
+            print("True in URL")
+            break
+        else:
+            await asyncio.sleep(10)  # Wait for 10 seconds
+            wait_time += 10
+
+    if wait_time >= 180 and not current_url.startswith("https://mail.google.com/mail/u/0/"):
+        print("Error: Timed out waiting for user to log in.")
+
+    # Read data from the file and send emails
+    for index, row in df.iterrows():
+        # Initialize an empty dictionary to store column names and values
+        kwargs = {}
         
+        # Iterate over each column dynamically
+        for column_name, value in row.items():
+            # Add column name and value to the kwargs dictionary
+            kwargs[column_name] = value
+        
+        # Compose email dynamically
+        subject = email_subject.format(**kwargs)
+        body = email_template.format(**kwargs)
+        email = email_ids.format(**kwargs)
 
-        driver.get("https://mail.google.com")
-    
-        driver.execute_script(js_code)
-         # Enter email
-        email_field = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.ID, "identifierId"))
-        )
-        email_field.send_keys(userId)
-        email_field.send_keys(Keys.RETURN)
-    
-        # Wait for password field
-        password_field = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.XPATH, "//input[@name='Passwd']"))
-        )
-        password_field.send_keys(userPass)
-        password_field.send_keys(Keys.RETURN)
-        # Wait for user to log in and handle 2FA
-    
-        wait_time = 0
-        while wait_time < 300:  # 180 seconds = 3 minutes
-            current_url = driver.current_url
-            if current_url.startswith("https://mail.google.com/mail/u/0/"):
-                print("True in URL")
-                driver.execute_script(js_code)
-                break
-            else:
-                time.sleep(10)  # Wait for 10 seconds
-                wait_time += 10
-    
-        if wait_time >= 180 and not current_url.startswith("https://mail.google.com/mail/u/0/"):
-            print("Error: Timed out waiting for user to log in.")
-    
-        # Read data from the file and send emails
-    
-        for index, row in df.iterrows():
-            # Initialize an empty dictionary to store column names and values
-            kwargs = {}
-            
-            # Iterate over each column dynamically
-            for column_name, value in row.items():
-                # Add column name and value to the kwargs dictionary
-                kwargs[column_name] = value
-            
-            # Compose email dynamically
-            subject = email_subject.format(**kwargs)
-            body = email_template.format(**kwargs)
-            email = email_ids.format(**kwargs)
-    
-            # Open compose window
-            # Compose the email
-            compose_button = WebDriverWait(driver, 30).until(
-                EC.element_to_be_clickable((By.XPATH, "//div[text()='Compose']"))
-            )
-            compose_button.click()
-            time.sleep(2)  # Wait for compose window to open
-    
-            to_field = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.XPATH, "//input[@aria-label='To recipients']"))
-            )
-            to_field.send_keys(email)
-    
-            subject_field = WebDriverWait(driver, 20).until(
-                EC.visibility_of_element_located((By.XPATH, "//input[@name='subjectbox']"))
-            )
-            subject_field.send_keys(subject)
-    
-            body_field = WebDriverWait(driver, 20).until(
-                EC.visibility_of_element_located((By.XPATH, "//div[@aria-label='Message Body']"))
-            )
-            body_field.send_keys(body)
-    
-            # Send the email using "Ctrl+Enter" shortcut
-            body_field.send_keys(Keys.CONTROL, Keys.ENTER)
-            time.sleep(2)  # Wait for email to be sent
-    
-        # Close the browser window
-        driver.quit()
-    except Exception as e:
-        st.error(f"Error occurred: {e}")
-        st.stop()
+        # Open compose window
+        # Compose the email
+        await page.waitForXPath("//div[text()='Compose']")
+        await page.click("//div[text()='Compose']")
+        await asyncio.sleep(2)  # Wait for compose window to open
+
+        await page.waitForSelector("input[aria-label='To recipients']")
+        await page.type("input[aria-label='To recipients']", email)
+
+        await page.waitForSelector("input[name='subjectbox']")
+        await page.type("input[name='subjectbox']", subject)
+
+        await page.waitForSelector("div[aria-label='Message Body']")
+        await page.type("div[aria-label='Message Body']", body)
+
+        # Send the email using "Ctrl+Enter" shortcut
+        await page.keyboard.down('Control')
+        await page.keyboard.press('Enter')
+        await page.keyboard.up('Control')
+        await asyncio.sleep(2)  # Wait for email to be sent
+
+    # Close the browser window
+    await browser.close()
 
 
 
@@ -146,7 +116,8 @@ def main():
                     st.warning("Please provide an email template.")
                     
                 if st.button("Send Emails"):
-                    send_emails(df, email_subject, email_template, email_list, userId, userPass)
+                    # To run the async function in a synchronous environment
+                    asyncio.get_event_loop().run_until_complete(send_emails(df, email_subject, email_template, email_ids, userId, userPass))
                     st.success("Emails sent successfully!")
             except Exception as e:
                 st.error(f"Error: {e}")
