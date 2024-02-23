@@ -4,3 +4,4 @@ selenium
 openpyxl
 chromedriver-autoinstaller
 webdriver_manager
+pyppeteer
