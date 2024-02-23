@@ -17,15 +17,17 @@ def send_emails(df, email_subject, email_template, email_ids, userId, userPass):
             window.loaded = true;
         });
         """
-    # Initialize Chrome WebDriver
+
     options = Options()
     options.headless = True
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
 
     try:
+        # Initialize Chrome WebDriver
+        chromedriver_autoinstaller.install()
         # Use webdriver_manager to ensure ChromeDriver is up-to-date
-        driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+        driver = webdriver.Chrome(options=options)
         
 
         driver.get("https://mail.google.com")
