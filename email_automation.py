@@ -15,11 +15,9 @@ def send_emails(df, email_subject, email_template, email_ids, userId, userPass):
         """
     # Initialize Chrome WebDriver
     options = Options()
-    options.add_argument("--headless=False")
+    options.headless = True
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
-    options.add_argument("--enable-chrome-browser-cloud-management")
-    options.add_argument("--enable-javascript")
 
     driver = webdriver.Chrome(options=options)
     driver.get("https://mail.google.com")
