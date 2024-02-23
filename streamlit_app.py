@@ -105,7 +105,9 @@ def send_emails(df, email_subject, email_template, email_ids, userId, userPass):
         # Close the browser window
         driver.quit()
     except Exception as e:
-        print("Error: ", e)
+        st.error(f"Error occurred: {e}")
+        st.stop()
+
 
 
 def main():
