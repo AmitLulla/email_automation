@@ -2,3 +2,5 @@ streamlit
 pandas
 selenium
 openpyxl
+chromedriver-autoinstaller
+webdriver_manager
