@@ -6,10 +6,16 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
 
-def send_emails(df, email_subject, email_template, email_ids):
+def send_emails(df, email_subject, email_template, email_ids, userId, userPass):
+    js_code = """
+        window.addEventListener('load', function() {
+            // Page is fully loaded, proceed with scraping
+            window.loaded = true;
+        });
+        """
     # Initialize Chrome WebDriver
     options = Options()
-    # options.add_argument("--headless=False")
+    options.add_argument("--headless=False")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--no-sandbox")
     options.add_argument("--enable-chrome-browser-cloud-management")
@@ -18,6 +24,20 @@ def send_emails(df, email_subject, email_template, email_ids):
     driver = webdriver.Chrome(options=options)
     driver.get("https://mail.google.com")
 
+    driver.execute_script(js_code)
+     # Enter email
+    email_field = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((By.ID, "identifierId"))
+    )
+    email_field.send_keys(userId)
+    email_field.send_keys(Keys.RETURN)
+
+    # Wait for password field
+    password_field = WebDriverWait(driver, 20).until(
+        EC.presence_of_element_located((By.XPATH, "//input[@name='Passwd']"))
+    )
+    password_field.send_keys(userPass)
+    password_field.send_keys(Keys.RETURN)
     # Wait for user to log in and handle 2FA
 
     wait_time = 0
@@ -25,12 +45,6 @@ def send_emails(df, email_subject, email_template, email_ids):
         current_url = driver.current_url
         if current_url.startswith("https://mail.google.com/mail/u/0/"):
             print("True in URL")
-            js_code = """
-            window.addEventListener('load', function() {
-                // Page is fully loaded, proceed with scraping
-                window.loaded = true;
-            });
-            """
             driver.execute_script(js_code)
             break
         else:
