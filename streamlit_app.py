@@ -7,6 +7,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import pandas as pd
 import time
+from webdriver_manager.chrome import ChromeDriverManager
 
 
 def send_emails(df, email_subject, email_template, email_ids, userId, userPass):
